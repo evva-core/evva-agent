@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using EvvaAgent.Services; // Import the Services namespace
 using EvvaAgent.DTOs;
 using EvvaAgent.Infrastructure.Metrics;
 using EvvaAgent.Infrastructure.Communication; // Import the DTOs namespace

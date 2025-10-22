@@ -32,11 +32,21 @@ evva-agent/
 │   └── Extensions/                # ServiceCollectionExtensions - DI registration
 │
 ├── Modules/                       # 🔌 Feature Modules (Pluggable)
-│   └── Nginx/                     # Nginx management module
-│       ├── Domain/               # NginxModels, configurations, DTOs
-│       ├── Services/             # NginxService - Business logic
-│       ├── Resources/            # NginxResource - Command implementations
-│       └── NginxModule.cs        # Module registration and routing
+│   ├── Nginx/                     # Nginx web server management
+│   │   ├── Domain/               # NginxModels, configurations, DTOs
+│   │   ├── Services/             # NginxService - Business logic
+│   │   ├── Resources/            # NginxResource - Command implementations
+│   │   └── NginxModule.cs        # Module registration and routing
+│   ├── SystemCtl/                # Linux systemd service management
+│   │   ├── Domain/               # Service models and configurations
+│   │   ├── Services/             # SystemCtlService - systemd operations
+│   │   ├── Resources/            # SystemCtlResource - Command implementations
+│   │   └── SystemCtlModule.cs    # Module registration and routing
+│   └── WindowsService/           # Windows service management
+│       ├── Domain/               # Service models and configurations
+│       ├── Services/             # WindowsServiceService - Windows operations
+│       ├── Resources/            # WindowsServiceResource - Command implementations
+│       └── WindowsServiceModule.cs # Module registration and routing
 │
 ├── Infrastructure/               # 🛠️ Technical Infrastructure
 │   ├── Communication/           # CoreHubService - SignalR integration
@@ -95,19 +105,37 @@ evva-agent/
 ### 2. Modules Layer 🔌
 **Responsibility**: Domain-specific business capabilities
 
-**Module Structure** (Example: Nginx):
+**Current Modules**:
+
+#### NginxModule
+- **Purpose**: Nginx web server management
+- **Commands**: Server configuration, reverse proxy, static sites, service control
+- **Platform**: Cross-platform (Linux/Windows)
+- **Dependencies**: NginxService, file system operations
+
+#### SystemCtlModule
+- **Purpose**: Linux systemd service management
+- **Commands**: Service creation, start/stop/restart, enable/disable, status
+- **Platform**: Linux only
+- **Dependencies**: SystemCtlService, systemctl command
+
+#### WindowsServiceModule
+- **Purpose**: Windows service management
+- **Commands**: Service creation, start/stop/restart/delete, status
+- **Platform**: Windows only
+- **Dependencies**: WindowsServiceService, sc command
+
+**Module Structure** (Standard Pattern):
 ```
-Nginx/
+ModuleName/
 ├── Domain/
-│   ├── NginxServerConfig.cs      # Configuration models
-│   ├── NginxStatus.cs           # Status models
-│   ├── ReverseProxyConfig.cs    # Proxy configuration
-│   └── StaticSiteConfig.cs      # Static site configuration
+│   ├── Models.cs               # Domain models and DTOs
+│   └── Enums.cs                # Enumerations
 ├── Services/
-│   └── NginxService.cs          # Core business logic
+│   └── ModuleService.cs        # Core business logic
 ├── Resources/
-│   └── NginxResource.cs         # Command implementations
-└── NginxModule.cs               # Module registration
+│   └── ModuleResource.cs       # Command implementations
+└── ModuleModule.cs             # Module registration
 ```
 
 **Module Capabilities**:

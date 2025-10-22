@@ -321,6 +321,77 @@ namespace EvvaAgent.Modules.Nginx.Services
             }
         }
 
+        /// <summary>
+        /// Add reverse proxy configuration
+        /// </summary>
+        public async Task<bool> AddReverseProxyAsync(ReverseProxyConfig config)
+        {
+            try
+            {
+                var serverConfig = new NginxServerConfig
+                {
+                    ServerName = config.Domain,
+                    Port = config.Port,
+                    Enabled = true,
+                    Locations = new List<NginxLocation>
+                    {
+                        new NginxLocation
+                        {
+                            Path = "/",
+                            ProxyPass = config.TargetUrl,
+                            CustomDirectives = new List<string>
+                            {
+                                "proxy_set_header Host $host",
+                                "proxy_set_header X-Real-IP $remote_addr",
+                                "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for",
+                                "proxy_set_header X-Forwarded-Proto $scheme"
+                            }
+                        }
+                    }
+                };
+
+                return await AddServerAsync(serverConfig);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error adding reverse proxy for {Domain}", config.Domain);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Add static site configuration
+        /// </summary>
+        public async Task<bool> AddStaticSiteAsync(StaticSiteConfig config)
+        {
+            try
+            {
+                var serverConfig = new NginxServerConfig
+                {
+                    ServerName = config.Domain,
+                    Port = config.Port,
+                    Root = config.RootPath,
+                    Index = config.IndexFiles ?? "index.html index.htm",
+                    Enabled = true,
+                    Locations = new List<NginxLocation>
+                    {
+                        new NginxLocation
+                        {
+                            Path = "/",
+                            TryFiles = "$uri $uri/ =404"
+                        }
+                    }
+                };
+
+                return await AddServerAsync(serverConfig);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error adding static site for {Domain}", config.Domain);
+                return false;
+            }
+        }
+
         private string GenerateServerConfig(NginxServerConfig config)
         {
             var sb = new StringBuilder();

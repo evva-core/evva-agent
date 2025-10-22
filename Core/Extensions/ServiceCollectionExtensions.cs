@@ -1,6 +1,14 @@
 using EvvaAgent.Core.Abstractions;
 using EvvaAgent.Core.Commands;
 using EvvaAgent.Modules.Nginx;
+using EvvaAgent.Modules.Nginx.Services;
+using EvvaAgent.Modules.Nginx.Resources;
+using EvvaAgent.Modules.SystemCtl;
+using EvvaAgent.Modules.SystemCtl.Services;
+using EvvaAgent.Modules.SystemCtl.Resources;
+using EvvaAgent.Modules.WindowsService;
+using EvvaAgent.Modules.WindowsService.Services;
+using EvvaAgent.Modules.WindowsService.Resources;
 
 namespace EvvaAgent.Core.Extensions
 {
@@ -10,8 +18,20 @@ namespace EvvaAgent.Core.Extensions
         {
             services.AddSingleton<ModularCommandService>();
             
-            // Register modules
+            // Register Nginx Module
             services.AddSingleton<IEvvaModule, NginxModule>();
+            services.AddScoped<NginxService>();
+            services.AddScoped<NginxResource>();
+            
+            // Register SystemCtl Module
+            services.AddSingleton<IEvvaModule, SystemCtlModule>();
+            services.AddScoped<SystemCtlService>();
+            services.AddScoped<SystemCtlResource>();
+            
+            // Register WindowsService Module
+            services.AddSingleton<IEvvaModule, WindowsServiceModule>();
+            services.AddScoped<WindowsServiceService>();
+            services.AddScoped<WindowsServiceResource>();
             
             return services;
         }

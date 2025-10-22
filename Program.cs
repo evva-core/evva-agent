@@ -11,7 +11,9 @@ using EvvaAgent.Infrastructure.Metrics;
 using EvvaAgent.Modules.Nginx.Services;
 using EvvaAgent.Workers;
 using EvvaAgent.Core.Extensions;
-using EvvaAgent.Services;
+using EvvaAgent.Core.Commands;
+
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,7 +32,6 @@ builder.Services.AddSingleton<ICommandExecutorService, CommandExecutorService>()
 builder.Services.AddScoped<IDeploymentService, DeploymentService>();
 builder.Services.AddSingleton<IMetricsService, MetricsService>();
 builder.Services.AddSingleton<ICoreHubService, CoreHubService>();
-builder.Services.AddSingleton<EvvaAgent.Services.ServiceManager>();
 builder.Services.AddScoped<NginxService>();
 builder.Services.AddEvvaModules();
 
@@ -52,30 +53,30 @@ using (var scope = app.Services.CreateScope())
 // 2. Map the SignalR Hub
 
 
-// 3. Add service management endpoints
-app.MapPost("/api/service/create", async (ServiceConfig config, ServiceManager serviceManager) =>
+
+
+// 4. Add command execution endpoint
+app.MapPost("/api/command", async (CommandRequest request, ModularCommandService commandService, IServiceProvider serviceProvider) =>
 {
-    var result = await serviceManager.CreateServiceAsync(config);
-    return result.Success ? Results.Ok(result) : Results.BadRequest(result);
+    try
+    {
+        var result = await commandService.ExecuteCommandAsync(request.Command, request.Parameters, serviceProvider);
+        return Results.Ok(result);
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { success = false, error = ex.Message });
+    }
 });
 
-app.MapPost("/api/service/{serviceName}/start", async (string serviceName, ServiceManager serviceManager) =>
+// 5. Get available modules and commands
+app.MapGet("/api/modules", (ModularCommandService commandService) =>
 {
-    var result = await serviceManager.StartServiceAsync(serviceName);
-    return result.Success ? Results.Ok(result) : Results.BadRequest(result);
+    var commands = commandService.GetAvailableCommands();
+    return Results.Ok(new { commands });
 });
 
-app.MapPost("/api/service/{serviceName}/stop", async (string serviceName, ServiceManager serviceManager) =>
-{
-    var result = await serviceManager.StopServiceAsync(serviceName);
-    return result.Success ? Results.Ok(result) : Results.BadRequest(result);
-});
 
-app.MapDelete("/api/service/{serviceName}", async (string serviceName, ServiceManager serviceManager) =>
-{
-    var result = await serviceManager.DeleteServiceAsync(serviceName);
-    return result.Success ? Results.Ok(result) : Results.BadRequest(result);
-});
 
 // 3. Configure modules
 app.Services.ConfigureEvvaModules();
@@ -106,3 +107,5 @@ var coreHub = app.Services.GetRequiredService<ICoreHubService>();
 await coreHub.StartAsync();
 
 app.Run();
+
+public record CommandRequest(string Command, string? Parameters);
