@@ -2,28 +2,34 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 using EvvaAgent.Modules.Nginx.Domain;
+using EvvaAgent.Domain.Repositories;
 
 namespace EvvaAgent.Modules.Nginx.Services
 {
     public class NginxService
     {
         private readonly ILogger<NginxService> _logger;
-        private readonly string _nginxConfigPath;
-        private readonly string _nginxExecutablePath;
-        private readonly string _sitesAvailablePath;
-        private readonly string _sitesEnabledPath;
+        private readonly IConfigurationRepository _configurationRepository;
+        private string _nginxConfigPath = string.Empty;
+        private string _nginxExecutablePath = string.Empty;
+        private string _sitesAvailablePath = string.Empty;
+        private string _sitesEnabledPath = string.Empty;
 
-        public NginxService(ILogger<NginxService> logger, IConfiguration configuration)
+        public NginxService(ILogger<NginxService> logger, IConfigurationRepository configurationRepository)
         {
             _logger = logger;
+            _configurationRepository = configurationRepository;
+        }
+
+        private async Task InitializePathsAsync()
+        {
+            var config = await _configurationRepository.GetAsync();
             
-            // Get paths from configuration or use defaults
-            _nginxConfigPath = configuration["Nginx:ConfigPath"] ?? GetDefaultNginxConfigPath();
-            _nginxExecutablePath = configuration["Nginx:ExecutablePath"] ?? GetDefaultNginxExecutablePath();
-            _sitesAvailablePath = configuration["Nginx:SitesAvailablePath"] ?? Path.Combine(Path.GetDirectoryName(_nginxConfigPath)!, "sites-available");
-            _sitesEnabledPath = configuration["Nginx:SitesEnabledPath"] ?? Path.Combine(Path.GetDirectoryName(_nginxConfigPath)!, "sites-enabled");
+            _nginxConfigPath = config?.NginxConfigPath ?? GetDefaultNginxConfigPath();
+            _nginxExecutablePath = config?.NginxPath ?? GetDefaultNginxExecutablePath();
+            _sitesAvailablePath = Path.Combine(Path.GetDirectoryName(_nginxConfigPath)!, "sites-available");
+            _sitesEnabledPath = Path.Combine(Path.GetDirectoryName(_nginxConfigPath)!, "sites-enabled");
             
-            // Ensure directories exist
             EnsureDirectoriesExist();
         }
 
@@ -34,6 +40,7 @@ namespace EvvaAgent.Modules.Nginx.Services
         {
             try
             {
+                await InitializePathsAsync();
                 _logger.LogInformation("Adding server configuration for {ServerName}", serverConfig.ServerName);
 
                 // Check if Nginx is running
@@ -98,6 +105,7 @@ namespace EvvaAgent.Modules.Nginx.Services
         {
             try
             {
+                await InitializePathsAsync();
                 _logger.LogInformation("Removing server configuration for {ServerName}", serverName);
 
                 // Check if Nginx is running
@@ -148,6 +156,7 @@ namespace EvvaAgent.Modules.Nginx.Services
         {
             try
             {
+                await InitializePathsAsync();
                 var configFileName = $"{serverName}.conf";
                 var sourcePath = Path.Combine(_sitesAvailablePath, configFileName);
                 var targetPath = Path.Combine(_sitesEnabledPath, configFileName);
@@ -216,6 +225,7 @@ namespace EvvaAgent.Modules.Nginx.Services
         {
             try
             {
+                await InitializePathsAsync();
                 var result = await ExecuteNginxCommandAsync("-t", "test is successful");
                 return result.Success;
             }
@@ -233,6 +243,7 @@ namespace EvvaAgent.Modules.Nginx.Services
         {
             try
             {
+                await InitializePathsAsync();
                 var result = await ExecuteNginxCommandAsync("-s reload");
                 if (result.Success)
                 {
@@ -259,6 +270,7 @@ namespace EvvaAgent.Modules.Nginx.Services
         {
             try
             {
+                await InitializePathsAsync();
                 if (OperatingSystem.IsWindows())
                 {
                     return await StartNginxWindowsAsync();
@@ -282,6 +294,7 @@ namespace EvvaAgent.Modules.Nginx.Services
         {
             try
             {
+                await InitializePathsAsync();
                 if (OperatingSystem.IsWindows())
                 {
                     return await RestartNginxWindowsAsync();
@@ -305,6 +318,7 @@ namespace EvvaAgent.Modules.Nginx.Services
         {
             try
             {
+                await InitializePathsAsync();
                 if (OperatingSystem.IsWindows())
                 {
                     return await GetNginxStatusWindowsAsync();
@@ -469,6 +483,7 @@ namespace EvvaAgent.Modules.Nginx.Services
 
         private async Task<(bool Success, string Output, string Error)> ExecuteNginxCommandAsync(string arguments, string successKeyword = null)
         {
+            await InitializePathsAsync();
             var processInfo = new ProcessStartInfo
             {
                 WorkingDirectory = Path.GetDirectoryName(_nginxExecutablePath),
@@ -507,7 +522,7 @@ namespace EvvaAgent.Modules.Nginx.Services
             {
                 var processInfo = new ProcessStartInfo
                 {
-                    WorkingDirectory = _nginxConfigPath.Replace("nginx.conf", "sites-enabled"),
+                    WorkingDirectory = _sitesEnabledPath ?? string.Empty,
                     FileName = "cmd.exe",
                     Arguments = $"/c mklink \"{targetPath}\" \"{sourcePath}\"",
                     RedirectStandardOutput = true,
@@ -562,6 +577,7 @@ namespace EvvaAgent.Modules.Nginx.Services
         {
             try
             {
+                await InitializePathsAsync();
                 var processInfo = new ProcessStartInfo
                 {
                     WorkingDirectory = _nginxExecutablePath.Replace("nginx.exe", ""),
@@ -609,6 +625,7 @@ namespace EvvaAgent.Modules.Nginx.Services
 
         private async Task<bool> RestartNginxWindowsAsync()
         {
+            await InitializePathsAsync();
             // Stop Nginx
             await ExecuteNginxCommandAsync("-s quit");
             await Task.Delay(2000); // Wait for graceful shutdown

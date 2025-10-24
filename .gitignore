@@ -4,3 +4,5 @@
 *.sql
 *.db-wal
 *.db-shm
+/scripts
+/dist

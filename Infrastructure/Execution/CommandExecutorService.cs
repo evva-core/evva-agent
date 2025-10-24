@@ -19,7 +19,7 @@ namespace EvvaAgent.Infrastructure.Execution
     {
         public Task<CommandResult> ExecuteCommandAsync(string command)
         {
-            return ExecuteCommandInDirectoryAsync(command, null);
+            return ExecuteCommandInDirectoryAsync(command, Environment.CurrentDirectory);
         }
 
         public async Task<CommandResult> ExecuteCommandInDirectoryAsync(string command, string workingDirectory)

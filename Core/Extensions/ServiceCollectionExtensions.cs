@@ -1,6 +1,8 @@
 using EvvaAgent.Core.Abstractions;
 using EvvaAgent.Core.Commands;
 using EvvaAgent.Modules.Nginx;
+using EvvaAgent.Domain.Repositories;
+using EvvaAgent.Infrastructure.Data;
 using EvvaAgent.Modules.Nginx.Services;
 using EvvaAgent.Modules.Nginx.Resources;
 using EvvaAgent.Modules.SystemCtl;
@@ -32,6 +34,13 @@ namespace EvvaAgent.Core.Extensions
             services.AddSingleton<IEvvaModule, WindowsServiceModule>();
             services.AddScoped<WindowsServiceService>();
             services.AddScoped<WindowsServiceResource>();
+            
+            // Register repositories
+            services.AddScoped<ICollectMetricRepository, CollectMetricRepository>();
+            services.AddScoped<IConfigurationRepository, ConfigurationRepository>();
+            services.AddScoped<IInformationRepository, InformationRepository>();
+            services.AddScoped<ILogRepository, LogRepository>();
+            services.AddScoped<IProjectRepository, ProjectRepository>();
             
             return services;
         }

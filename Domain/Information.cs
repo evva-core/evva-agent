@@ -2,6 +2,7 @@ namespace EvvaAgent.Domain
 {
     public class Information
     {
+        public int Id { get; set; }
         public string HostName { get; set; } = string.Empty;
         public string? IpAddress { get; set; }
         public string Os { get; set; } = string.Empty;

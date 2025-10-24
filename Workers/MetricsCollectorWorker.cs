@@ -29,21 +29,34 @@ namespace EvvaAgent.Workers
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            
             while (!stoppingToken.IsCancellationRequested)
             {
-                if (_coreHub.IsConnected)
+                try
                 {
-                    var metrics = await _metricsService.GetHostMetricsAsync();
-                    var sent = await _coreHub.SendMetricsAsync(metrics);
+                    _logger.LogInformation("Checking connection status: {IsConnected}", _coreHub.IsConnected);
                     
-                    if (sent)
-                        _logger.LogInformation("Metrics sent successfully");
+                    if (_coreHub.IsConnected)
+                    {
+                        _logger.LogInformation("Collecting metrics...");
+                        var metrics = await _metricsService.GetHostMetricsAsync();
+                        
+                        _logger.LogInformation("Sending metrics to core...");
+                        var sent = await _coreHub.SendMetricsAsync(metrics);
+                        
+                        if (sent)
+                            _logger.LogInformation("Metrics sent successfully");
+                        else
+                            _logger.LogWarning("Failed to send metrics");
+                    }
                     else
-                        _logger.LogWarning("Failed to send metrics");
+                    {
+                        _logger.LogWarning("Not connected to core server - skipping metrics");
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    _logger.LogWarning("Not connected to core server");
+                    _logger.LogError(ex, "Error in metrics collection cycle");
                 }
 
                 await Task.Delay(5000, stoppingToken);

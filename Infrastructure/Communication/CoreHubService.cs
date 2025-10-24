@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.SignalR.Client;
 using EvvaAgent.Infrastructure.Execution;
 using EvvaAgent.Domain;
 using EvvaAgent.Core.Commands;
+using EvvaAgent.Domain.Repositories;
 
 namespace EvvaAgent.Infrastructure.Communication;
 
@@ -20,19 +21,47 @@ public class CoreHubService : ICoreHubService, IDisposable
     private readonly ILogger<CoreHubService> _logger;
     private readonly ICommandExecutorService _commandExecutor;
     private readonly IServiceProvider _serviceProvider;
-    private readonly string _uniqueId = "e70c7c6e-eb27-418b-bc0c-b01678e5fbb1";
+    private readonly IInformationRepository _informationRepository;
+    private readonly IConfigurationRepository _configurationRepository;
+    private string _uniqueId = string.Empty;
+    private string _coreUrl = string.Empty;
     private HubConnection _connection;
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
-
-    public CoreHubService(ILogger<CoreHubService> logger, ICommandExecutorService commandExecutor, IServiceProvider serviceProvider)
+    
+    public CoreHubService(ILogger<CoreHubService> logger, ICommandExecutorService commandExecutor, IServiceProvider serviceProvider, IInformationRepository informationRepository, IConfigurationRepository configurationRepository)
     {
         _logger = logger;
         _commandExecutor = commandExecutor;
         _serviceProvider = serviceProvider;
+        _informationRepository = informationRepository;
+        _configurationRepository = configurationRepository;
+
+    }
+
+    private async Task InitializeConnectionAsync()
+    {
+        _logger.LogInformation("Getting information from database...");
+        var information = await _informationRepository.GetAsync();
+        _logger.LogInformation("Information UUID: {Uuid}", information?.Uuid ?? "null");
         
+        if (information == null || string.IsNullOrEmpty(information.Uuid))
+            throw new InvalidOperationException("UUID not found in database. Please configure the agent first.");
+
+        _logger.LogInformation("Getting configuration from database...");
+        var configuration = await _configurationRepository.GetAsync();
+        _logger.LogInformation("Configuration URL: {Url}", configuration?.AdminServerUrl ?? "null");
+        
+        if (configuration == null || string.IsNullOrEmpty(configuration.AdminServerUrl))
+            throw new InvalidOperationException("Admin server URL not found in database. Please configure the agent first.");
+
+        _uniqueId = information.Uuid;
+        _coreUrl = $"{configuration.AdminServerUrl}/hostHub";
+        
+        _logger.LogInformation("Building connection to: {CoreUrl}", _coreUrl);
+
         _connection = new HubConnectionBuilder()
-            .WithUrl("http://localhost:5279/hostHub")
+            .WithUrl(_coreUrl)
             .WithAutomaticReconnect()
             .Build();
 
@@ -58,19 +87,23 @@ public class CoreHubService : ICoreHubService, IDisposable
 
     public async Task StartAsync()
     {
+        
         try
         {
+
+            await InitializeConnectionAsync();
+            
             if (_connection.State == HubConnectionState.Disconnected)
             {
+                _logger.LogInformation("Starting SignalR connection to {CoreUrl}", _coreUrl);
                 await _connection.StartAsync();
                 await _connection.InvokeAsync("JoinHostGroup", _uniqueId);
-                _logger.LogInformation("Connected to core and joined group: {UniqueId}", _uniqueId);
+                _logger.LogInformation("Connected to core at {CoreUrl} and joined group: {UniqueId}", _coreUrl, _uniqueId);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to connect to core - will retry automatically");
-            // Don't throw - let automatic reconnection handle it
+            _logger.LogError(ex, "Failed to connect to core: {Message}", ex.Message);
         }
     }
 
@@ -80,9 +113,14 @@ public class CoreHubService : ICoreHubService, IDisposable
         {
             if (IsConnected)
             {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
                 await _connection.InvokeAsync("SendHostData", _uniqueId, metrics);
                 return true;
             }
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("SendMetrics timeout after 5 seconds");
         }
         catch (Exception ex)
         {
@@ -273,7 +311,7 @@ public class CoreHubService : ICoreHubService, IDisposable
                             ?? deploymentRequest.Repositories.FirstOrDefault();
                         
                         var workingDir = targetRepo?.TargetPath;
-                        var result = await _commandExecutor.ExecuteCommandInDirectoryAsync(step.Command, workingDir);
+                        var result = await _commandExecutor.ExecuteCommandInDirectoryAsync(step.Command, workingDir ?? Environment.CurrentDirectory);
                         
                         if (result.ExitCode == 1)
                         {
