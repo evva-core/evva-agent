@@ -12,6 +12,8 @@ using EvvaAgent.Modules.Nginx.Services;
 using EvvaAgent.Workers;
 using EvvaAgent.Core.Extensions;
 using EvvaAgent.Core.Commands;
+using EvvaAgent.Domain.Repositories;
+using EvvaAgent.Infrastructure.Data;
 
 
 
@@ -41,13 +43,26 @@ builder.Services.AddDbContext<AgentDbContext>(options =>
 // 3. Register custom application services
 builder.Services.AddSingleton<ICommandExecutorService, CommandExecutorService>();
 builder.Services.AddScoped<IDeploymentService, DeploymentService>();
-builder.Services.AddSingleton<IMetricsService, MetricsService>();
+ 
 builder.Services.AddSingleton<ICoreHubService, CoreHubService>();
 builder.Services.AddScoped<NginxService>();
 builder.Services.AddEvvaModules();
 
+// Register repositories as singletons
+builder.Services.AddSingleton<IInformationRepository, InformationRepository>();
+builder.Services.AddSingleton<IConfigurationRepository, ConfigurationRepository>();
+
+if (OperatingSystem.IsWindows())
+{
+    builder.Services.AddSingleton<IMetricsService, MetricsService>();
+    builder.Services.AddHostedService<MetricsCollectorWorker>();
+}
+else
+{
+    builder.Services.AddSingleton<IlinuxMetricsService, LinuxMetricsService>();
+    builder.Services.AddHostedService<LinuxMetricsCollectorWorker>();
+}
 // 4. Register the background workers
-builder.Services.AddHostedService<MetricsCollectorWorker>();
 
 
 var app = builder.Build();
@@ -84,8 +99,9 @@ if (args.Length > 0)
 {
     using var scope = app.Services.CreateScope();
     var configRepo = scope.ServiceProvider.GetRequiredService<EvvaAgent.Domain.Repositories.IConfigurationRepository>();
+    var informationRepo = scope.ServiceProvider.GetRequiredService<EvvaAgent.Domain.Repositories.IInformationRepository>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    
+    var information = await informationRepo.GetAsync() ?? new EvvaAgent.Domain.Information();
     var config = await configRepo.GetAsync() ?? new EvvaAgent.Domain.Configuration();
     
     if (args.Contains("--admin-server-url"))
@@ -98,7 +114,10 @@ if (args.Length > 0)
         config.NginxConfigPath = args[Array.IndexOf(args, "--nginx-config-path") + 1];
     if(args.Contains("--firt-run"))
         config.FirstRun = 1;
+    if(args.Contains("--uuid"))
+        information.Uuid = args[Array.IndexOf(args, "--uuid") + 1];
     await configRepo.SaveAsync(config);
+    await informationRepo.SaveAsync(information);
     logger.LogInformation("Configuration updated from command line arguments");
 }
 

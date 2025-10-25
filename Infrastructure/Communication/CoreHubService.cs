@@ -113,6 +113,9 @@ public class CoreHubService : ICoreHubService, IDisposable
         {
             if (IsConnected)
             {
+                // Test serialization first to catch infinite values
+                var testJson = System.Text.Json.JsonSerializer.Serialize(metrics);
+                
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
                 await _connection.InvokeAsync("SendHostData", _uniqueId, metrics);
                 return true;
@@ -121,6 +124,10 @@ public class CoreHubService : ICoreHubService, IDisposable
         catch (OperationCanceledException)
         {
             _logger.LogWarning("SendMetrics timeout after 5 seconds");
+        }
+        catch (ArgumentException ex) when (ex.Message.Contains("infinity"))
+        {
+            _logger.LogError("Metrics contain infinite values, skipping send");
         }
         catch (Exception ex)
         {

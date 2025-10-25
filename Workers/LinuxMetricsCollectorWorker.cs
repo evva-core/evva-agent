@@ -14,19 +14,20 @@ namespace EvvaAgent.Workers
     /// A background service that periodically collects host metrics 
     /// and sends them to the management server.
     /// </summary>
-    public class MetricsCollectorWorker : BackgroundService
+    public class LinuxMetricsCollectorWorker : BackgroundService
     {
         private readonly ILogger<MetricsCollectorWorker> _logger;
-        private readonly IMetricsService _metricsService;
+     
         private readonly ICoreHubService _coreHub;
-
+        private readonly IlinuxMetricsService _linuxMetricsService;
         
 
-        public MetricsCollectorWorker(ILogger<MetricsCollectorWorker> logger, IMetricsService metricsService, ICoreHubService coreHub )
+        public LinuxMetricsCollectorWorker(ILogger<MetricsCollectorWorker> logger,ICoreHubService coreHub, IlinuxMetricsService ilinuxMetricsService)
         {
             _logger = logger;
-            _metricsService = metricsService;
+
             _coreHub = coreHub;
+            _linuxMetricsService = ilinuxMetricsService;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -37,15 +38,14 @@ namespace EvvaAgent.Workers
                 try
                 {
                     _logger.LogInformation("Checking connection status: {IsConnected}", _coreHub.IsConnected);
-                    
                     if (_coreHub.IsConnected)
                     {
                         _logger.LogInformation("Collecting metrics...");
-                        var metrics = await _metricsService.GetHostMetricsAsync();
-                        
+                        var metrics = await _linuxMetricsService.GetHostMetricsAsync();
+
                         _logger.LogInformation("Sending metrics to core...");
                         var sent = await _coreHub.SendMetricsAsync(metrics);
-                        
+
                         if (sent)
                             _logger.LogInformation("Metrics sent successfully");
                         else
